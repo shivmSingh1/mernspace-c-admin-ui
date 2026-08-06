@@ -2,9 +2,11 @@ import { Layout, Card, Space, Form, Input, Checkbox, Button, Flex, Alert } from 
 import { LockFilled, UserOutlined, LockOutlined } from '@ant-design/icons';
 import Logo from '../../components/icons/Logo';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { login, self } from '../../http/api';
+import { login, self, logout } from '../../http/api';
 import type { Credentials } from '../../types';
 import { useAuthStore } from '../../store';
+import { usePermission } from '../../hooks/userPermission';
+
 
 const loginUser = async (credentials: Credentials) => {
 	// server call logic
@@ -19,7 +21,9 @@ const getSelf = async () => {
 
 function LoginPage() {
 
-	const { setUser } = useAuthStore();
+	const { setUser, logout: logoutFromStore } = useAuthStore();
+	const { isAllowed } = usePermission();
+
 
 	const { refetch } = useQuery({
 		queryKey: ['self'],
@@ -33,6 +37,13 @@ function LoginPage() {
 		onSuccess: async () => {
 			// getself
 			const selfDataPromise = await refetch();
+
+			//authenticate user
+			if (!isAllowed(selfDataPromise.data)) {
+				await logout();
+				logoutFromStore();
+				return;
+			}
 			// store in the state
 			setUser(selfDataPromise.data);
 			console.log('Login successful.');
