@@ -61,7 +61,7 @@ const Users = () => {
 	const [form] = Form.useForm();
 	const [filterForm] = Form.useForm();
 
-	const [currentEditingUser, setCurrentEditingUser] = React.useState<User | null>(null);
+	const [currentEditingUser, setCurrentEditingUser] = useState<User | null>(null);
 
 	const queryClient = useQueryClient();
 
@@ -72,13 +72,13 @@ const Users = () => {
 	const [drawerOpen, setDrawerOpen] = useState(false);
 
 
-	useEffect(() => {
-		if (currentEditingUser) {
-			console.log('currentEditingUser', currentEditingUser);
-			setDrawerOpen(true);
-			form.setFieldsValue({ ...currentEditingUser, tenantId: currentEditingUser.tenant?.id });
-		}
-	}, [currentEditingUser, form]);
+	// useEffect(() => {
+	// 	if (currentEditingUser) {
+	// 		console.log('currentEditingUser', currentEditingUser);
+	// 		setDrawerOpen(true);
+	// 		form.setFieldsValue({ ...currentEditingUser, tenantId: currentEditingUser.tenant?.id });
+	// 	}
+	// }, [currentEditingUser, form]);
 
 	const {
 		data: users,
@@ -185,7 +185,12 @@ const Users = () => {
 						<Button
 							type="primary"
 							icon={<PlusOutlined />}
-							onClick={() => setDrawerOpen(true)}>
+							onClick={() => {
+								setCurrentEditingUser(null);
+								form.resetFields();
+								setDrawerOpen(true);
+							}}
+						>
 							Add User
 						</Button>
 					</UsersFilter>
@@ -203,7 +208,15 @@ const Users = () => {
 											type="link"
 											onClick={() => {
 												setCurrentEditingUser(record);
-											}}>
+
+												form.setFieldsValue({
+													...record,
+													tenantId: record.tenant?.id,
+												});
+
+												setDrawerOpen(true);
+											}}
+										>
 											Edit
 										</Button>
 									</Space>
