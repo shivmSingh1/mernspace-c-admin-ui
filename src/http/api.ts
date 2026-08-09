@@ -1,6 +1,7 @@
 
 import { api } from './client';
 import type { CreateTenantData, CreateUserData, Credentials } from '../types';
+export const updateUser = (user: CreateUserData, id: string) => api.patch(`/users/${id}`, user);
 
 // Auth service
 export const login = (credentials: Credentials) => api.post('/auth/login', credentials);
