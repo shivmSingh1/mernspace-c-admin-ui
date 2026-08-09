@@ -1,14 +1,15 @@
-import { Breadcrumb, Button, Drawer, Form, Space, Table, theme } from 'antd';
-import { PlusOutlined, RightOutlined } from '@ant-design/icons';
+import { Breadcrumb, Button, Drawer, Form, Space, Table, theme, Flex, Spin, Typography } from 'antd';
+import { PlusOutlined, RightOutlined, LoadingOutlined } from '@ant-design/icons';
 import { Link, Navigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createUser, getUsers } from '../../http/api';
-import type { CreateUserData, User } from '../../types';
+import type { CreateUserData, User, FieldData } from '../../types';
 import { useAuthStore } from '../../store';
 import UsersFilter from './UsersFilter';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import UserForm from './forms/UserFrom';
-
+import { PER_PAGE } from '../../constants';
+import { debounce } from 'lodash';
 
 const columns = [
 	{
@@ -38,11 +39,28 @@ const columns = [
 		dataIndex: 'role',
 		key: 'role',
 	},
+	{
+		title: 'Restaurant',
+		dataIndex: 'tenant',
+		key: 'tenant',
+		render: (_text: string, record: User) => {
+			return <div>{record.tenant?.name}</div>;
+		},
+	},
 ];
+
+
 
 const Users = () => {
 
+	const [queryParams, setQueryParams] = useState({
+		perPage: PER_PAGE,
+		currentPage: 1,
+	});
+
 	const [form] = Form.useForm();
+	const [filterForm] = Form.useForm();
+
 	const queryClient = useQueryClient();
 
 	const {
@@ -52,14 +70,21 @@ const Users = () => {
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const {
 		data: users,
-		isLoading,
+		isFetching,
 		isError,
 		error,
 	} = useQuery({
-		queryKey: ['users'],
+		queryKey: ['users', queryParams],
 		queryFn: () => {
-			return getUsers().then((res) => res.data);
+			const filteredParams = Object.fromEntries(
+				Object.entries(queryParams).filter((item) => !!item[1])
+			);
+			const queryString = new URLSearchParams(
+				filteredParams as unknown as Record<string, string>
+			).toString();
+			return getUsers(queryString).then((res) => res.data);
 		},
+		placeholderData: keepPreviousData,
 	});
 
 	const { user } = useAuthStore();
@@ -80,6 +105,40 @@ const Users = () => {
 		setDrawerOpen(false);
 	};
 
+	const debouncedQUpdate = useMemo(
+		() =>
+			debounce((value: string | undefined) => {
+				setQueryParams((prev) => ({
+					...prev,
+					q: value,
+				}));
+			}, 1000),
+		[]
+	);
+
+	useEffect(() => {
+		return () => {
+			debouncedQUpdate.cancel();
+		};
+	}, [debouncedQUpdate]);
+
+	const onFilterChange = (changedFields: FieldData[]) => {
+		const changedFilterFields = changedFields
+			.map((item) => ({
+				[item.name[0]]: item.value,
+			}))
+			.reduce((acc, item) => ({ ...acc, ...item }), {});
+
+		if ("q" in changedFilterFields) {
+			debouncedQUpdate(changedFilterFields.q);
+		} else {
+			setQueryParams((prev) => ({
+				...prev,
+				...changedFilterFields,
+			}));
+		}
+	};
+
 	if (user?.role !== 'admin') {
 		return <Navigate to="/" replace={true} />;
 	}
@@ -87,26 +146,47 @@ const Users = () => {
 	return (
 		<>
 			<Space direction="vertical" size="large" style={{ width: '100%' }}>
-				<Breadcrumb
-					separator={<RightOutlined />}
-					items={[{ title: <Link to="/">Dashboard</Link> }, { title: 'Users' }]}
+				<Flex justify="space-between">
+					<Breadcrumb
+						separator={<RightOutlined />}
+						items={[{ title: <Link to="/">Dashboard</Link> }, { title: 'Users' }]}
+					/>
+					{isFetching && (
+						<Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+					)}
+					{isError && <Typography.Text type="danger">{error.message}</Typography.Text>}
+				</Flex>
+
+				<Form form={filterForm} onFieldsChange={onFilterChange}>
+					<UsersFilter>
+						<Button
+							type="primary"
+							icon={<PlusOutlined />}
+							onClick={() => setDrawerOpen(true)}>
+							Add User
+						</Button>
+					</UsersFilter>
+				</Form>
+
+				<Table
+					columns={columns}
+					dataSource={users?.data}
+					rowKey={'id'}
+					pagination={{
+						total: users?.total,
+						pageSize: queryParams.perPage,
+						current: queryParams.currentPage,
+						onChange: (page) => {
+							console.log(page);
+							setQueryParams((prev) => {
+								return {
+									...prev,
+									currentPage: page,
+								};
+							});
+						},
+					}}
 				/>
-				{isLoading && <div>Loading...</div>}
-				{isError && <div>{error.message}</div>}
-
-				<UsersFilter
-					onFilterChange={(filterName: string, filterValue: string) => {
-						console.log(filterName, filterValue);
-					}}>
-					<Button
-						type="primary"
-						icon={<PlusOutlined />}
-						onClick={() => setDrawerOpen(true)}>
-						Add User
-					</Button>
-				</UsersFilter>
-
-				<Table columns={columns} dataSource={users?.data} rowKey={'id'} />
 
 				<Drawer
 					title="Create user"

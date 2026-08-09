@@ -9,6 +9,7 @@ export type User = {
 	firstName: string;
 	lastName: string;
 	createdAt: string;
+	tenant: Tenant | null;
 };
 
 export type Tenant = {
@@ -25,4 +26,14 @@ export type CreateUserData = {
 	password: string;
 	role: string;
 	tenantId: number;
+};
+
+export type FieldData = {
+	name: string[];
+	value?: string;
+};
+
+export type CreateTenantData = {
+	name: string;
+	address: string;
 };
