@@ -1,10 +1,13 @@
-import { Breadcrumb, Space, Table } from 'antd';
-import { RightOutlined } from '@ant-design/icons';
+import { Breadcrumb, Button, Drawer, Form, Space, Table, theme } from 'antd';
+import { PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { Link, Navigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getUsers } from '../../http/api';
-import type { User } from '../../types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createUser, getUsers } from '../../http/api';
+import type { CreateUserData, User } from '../../types';
 import { useAuthStore } from '../../store';
+import UsersFilter from './UsersFilter';
+import { useState } from 'react';
+import UserForm from './forms/UserFrom';
 
 
 const columns = [
@@ -38,6 +41,15 @@ const columns = [
 ];
 
 const Users = () => {
+
+	const [form] = Form.useForm();
+	const queryClient = useQueryClient();
+
+	const {
+		token: { colorBgLayout },
+	} = theme.useToken();
+
+	const [drawerOpen, setDrawerOpen] = useState(false);
 	const {
 		data: users,
 		isLoading,
@@ -51,6 +63,22 @@ const Users = () => {
 	});
 
 	const { user } = useAuthStore();
+
+	const { mutate: userMutate } = useMutation({
+		mutationKey: ['user'],
+		mutationFn: async (data: CreateUserData) => createUser(data).then((res) => res.data),
+		onSuccess: async () => {
+			queryClient.invalidateQueries({ queryKey: ['users'] });
+			return;
+		},
+	});
+
+	const onHandleSubmit = async () => {
+		await form.validateFields();
+		await userMutate(form.getFieldsValue());
+		form.resetFields();
+		setDrawerOpen(false);
+	};
 
 	if (user?.role !== 'admin') {
 		return <Navigate to="/" replace={true} />;
@@ -66,7 +94,48 @@ const Users = () => {
 				{isLoading && <div>Loading...</div>}
 				{isError && <div>{error.message}</div>}
 
-				<Table columns={columns} dataSource={users?.data} />
+				<UsersFilter
+					onFilterChange={(filterName: string, filterValue: string) => {
+						console.log(filterName, filterValue);
+					}}>
+					<Button
+						type="primary"
+						icon={<PlusOutlined />}
+						onClick={() => setDrawerOpen(true)}>
+						Add User
+					</Button>
+				</UsersFilter>
+
+				<Table columns={columns} dataSource={users?.data} rowKey={'id'} />
+
+				<Drawer
+					title="Create user"
+					styles={{ body: { backgroundColor: colorBgLayout } }}
+					width={720}
+					destroyOnClose={true}
+					open={drawerOpen}
+					onClose={() => {
+						form.resetFields();
+						setDrawerOpen(false);
+					}}
+					extra={
+						<Space>
+							<Button
+								onClick={() => {
+									form.resetFields();
+									setDrawerOpen(false);
+								}}>
+								Cancel
+							</Button>
+							<Button type="primary" onClick={onHandleSubmit}>
+								Submit
+							</Button>
+						</Space>
+					}>
+					<Form layout="vertical" form={form}>
+						<UserForm />
+					</Form>
+				</Drawer>
 			</Space>
 		</>
 	);
